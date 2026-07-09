@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model TrainingPlan {
+  id               Int     @id @default(autoincrement())
+  weekNumber       Int
+  dayOfWeek        String
+  programmedMiles  Float   @default(0.0)
+  programmedLift   String?
+  isCompleted      Boolean @default(false)
+  @@unique([weekNumber, dayOfWeek])
+}
+model DailyLog {
+  id                Int      @id @default(autoincrement())
+  date              DateTime @unique
+  weekNumber        Int
+  dayOfWeek         String
+  executedMiles     Float    @default(0.0)
+  executedLiftNotes String?
+  fatigueLevel      Int?
+  userNotes         String?
+  createdAt         DateTime @default(now())
+}

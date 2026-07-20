@@ -1,27 +1,132 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-model TrainingPlan {
-  id               Int     @id @default(autoincrement())
-  weekNumber       Int
-  dayOfWeek        String
-  programmedMiles  Float   @default(0.0)
-  programmedLift   String?
-  isCompleted      Boolean @default(false)
-  @@unique([weekNumber, dayOfWeek])
+
+enum PlanStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
 }
-model DailyLog {
-  id                Int      @id @default(autoincrement())
-  date              DateTime @unique
+
+enum PlanPhase {
+  BASE
+  BUILD
+  PEAK
+  TAPER
+  RACE
+}
+
+enum WorkoutType {
+  EASY
+  LONG
+  TEMPO
+  INTERVALS
+  HILLS
+  RACE_PACE
+  CROSS
+  REST
+  RACE
+}
+
+enum WorkoutStatus {
+  SCHEDULED
+  COMPLETED
+  MISSED
+  ADJUSTED
+  SKIPPED
+}
+
+model User {
+  id                   String    @id @default(cuid())
+  email                String?   @unique
+  name                 String?
+  measurementPref      String    @default("imperial")
+  stravaAthleteId      String?   @unique
+  stravaAccessToken    String?
+  stravaRefreshToken   String?
+  stravaTokenExpiresAt DateTime?
+  stravaLastSyncAt     DateTime?
+  createdAt            DateTime  @default(now())
+
+  plans        TrainingPlan[]
+  activities   Activity[]
+  chatMessages ChatMessage[]
+}
+
+model TrainingPlan {
+  id                    Int        @id @default(autoincrement())
+  userId                String
+  user                  User       @relation(fields: [userId], references: [id])
+  goalName              String
+  goalDistanceMi        Float
+  raceDate              DateTime
+  startDate             DateTime
+  startingWeeklyMileage Float
+  longRunDay            String
+  status                PlanStatus @default(ACTIVE)
+  createdAt             DateTime   @default(now())
+
+  workouts PlannedWorkout[]
+
+  @@index([userId, status])
+}
+
+model PlannedWorkout {
+  id                Int           @id @default(autoincrement())
+  planId            Int
+  plan              TrainingPlan  @relation(fields: [planId], references: [id])
+  date              DateTime
   weekNumber        Int
-  dayOfWeek         String
-  executedMiles     Float    @default(0.0)
-  executedLiftNotes String?
-  fatigueLevel      Int?
-  userNotes         String?
-  createdAt         DateTime @default(now())
+  phase             PlanPhase
+  workoutType       WorkoutType
+  targetDistanceMi  Float?
+  targetDurationMin Int?
+  description       String
+  status            WorkoutStatus @default(SCHEDULED)
+  adjustmentNote    String?
+  activityId        Int?          @unique
+  activity          Activity?     @relation(fields: [activityId], references: [id])
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([planId, date])
+  @@index([planId, date])
+}
+
+model Activity {
+  id              Int      @id @default(autoincrement())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  stravaId        String   @unique
+  source          String   @default("strava")
+  name            String?
+  sportType       String?
+  date            DateTime
+  distanceMi      Float
+  movingTimeSec   Int
+  elevationGainFt Float?
+  avgPaceSecPerMi Float?
+  avgHr           Float?
+  calories        Float?
+  createdAt       DateTime @default(now())
+
+  plannedWorkout PlannedWorkout?
+
+  @@index([userId, date])
+}
+
+model ChatMessage {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

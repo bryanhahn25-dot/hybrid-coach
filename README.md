@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hybrid Coach
 
-## Getting Started
+An adaptive running coach: it builds a periodized training plan for your goal race, imports your
+runs from Strava, and adjusts the plan when life happens -- through chat, not a rigid PDF.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router) + React 19
+- Prisma + Postgres (built against [Neon](https://neon.com))
+- `ai` (Vercel AI SDK) + `@ai-sdk/google` (Gemini) for the coach chat, with tool-calling that can
+  actually edit the plan
+- Strava API v3 (OAuth) for importing activities
+
+## Setup
 
 ```bash
+npm install
+cp .env.example .env   # fill in DATABASE_URL, GOOGLE_GENERATIVE_AI_API_KEY, STRAVA_CLIENT_ID/SECRET
+npx prisma migrate deploy   # or `prisma migrate dev` for local development
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Strava app
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Create an API app at https://www.strava.com/settings/api. Set its "Authorization Callback Domain"
+to match `STRAVA_REDIRECT_URI` (host only, e.g. `localhost` or your deployed domain). The in-app
+"Connect Strava" button starts the OAuth flow at `/api/strava/authorize`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## How it works
 
-## Learn More
+- **Plan generation** (`lib/planGenerator.ts`): a transparent, rule-based periodization engine --
+  base → build → peak → taper → race -- with cutback weeks and, for ultra distances (50k+),
+  back-to-back long run days instead of one ever-growing single run. Not ML, not a black box.
+- **Strava import** (`lib/strava.ts`, `app/api/strava/*`): OAuth token exchange/refresh and an
+  activity sync that upserts runs and auto-links them to the matching day's planned workout.
+- **Coach chat** (`app/api/chat/route.ts`): Gemini with two tools -- `getWorkouts` to look up the
+  plan, `adjustWorkouts` to actually change it. Tell it "I woke up sick" and it edits today's (and
+  the week's) workouts and explains why, instead of just talking about it.
 
-To learn more about Next.js, take a look at the following resources:
+## Current limitations
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Single-user only for now -- there's no login. Every request resolves to one bootstrapped account
+  (`lib/currentUser.ts`). The schema is already keyed by `userId` throughout, so adding real auth
+  (e.g. [Neon Auth](https://neon.com/docs/guides/auth)) later is additive, not a rewrite.
+- No live GPS recording -- runs come in via Strava import, the same way Runna-tracked runs would.
+- The plan generator is a heuristic, not a physiologist. It's meant to be transparent and easy to
+  tune (see `lib/planGenerator.ts`), not a competitor to a coach's judgment.

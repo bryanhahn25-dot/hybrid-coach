@@ -1,50 +1,78 @@
-"use client";
+import { getCurrentUser } from "@/lib/currentUser";
+import { getActivePlanWithWorkouts, getRecentActivities } from "@/lib/planQueries";
+import { getChatHistory } from "@/lib/chatHistory";
+import PlanSetupForm from "@/components/PlanSetupForm";
+import PlanDashboard, { type ActivityView, type PlanView } from "@/components/PlanDashboard";
+import CoachChat from "@/components/CoachChat";
 
-import { useChat } from '@ai-sdk/react';
-import type { Message } from '@ai-sdk/react';
+// Always reflects live DB state (plan, chat history) — never statically prerendered.
+export const dynamic = "force-dynamic";
 
-export default function EnduranceDashboard() {
-  const { messages, input, handleInputChange, handleSubmit } = useChat();
+export default async function HomePage() {
+  const user = await getCurrentUser();
+  const [plan, activities, chatHistory] = await Promise.all([
+    getActivePlanWithWorkouts(user.id),
+    getRecentActivities(user.id, 8),
+    getChatHistory(user.id),
+  ]);
+
+  const planView: PlanView | null = plan
+    ? {
+        id: plan.id,
+        goalName: plan.goalName,
+        goalDistanceMi: plan.goalDistanceMi,
+        raceDate: plan.raceDate.toISOString(),
+        startDate: plan.startDate.toISOString(),
+        longRunDay: plan.longRunDay,
+        workouts: plan.workouts.map((w) => ({
+          id: w.id,
+          date: w.date.toISOString(),
+          weekNumber: w.weekNumber,
+          phase: w.phase,
+          workoutType: w.workoutType,
+          targetDistanceMi: w.targetDistanceMi,
+          description: w.description,
+          status: w.status,
+          adjustmentNote: w.adjustmentNote,
+          activity: w.activity
+            ? {
+                distanceMi: w.activity.distanceMi,
+                movingTimeSec: w.activity.movingTimeSec,
+                avgPaceSecPerMi: w.activity.avgPaceSecPerMi,
+              }
+            : null,
+        })),
+      }
+    : null;
+
+  const activityViews: ActivityView[] = activities.map((a) => ({
+    id: a.id,
+    name: a.name,
+    date: a.date.toISOString(),
+    distanceMi: a.distanceMi,
+    movingTimeSec: a.movingTimeSec,
+    avgPaceSecPerMi: a.avgPaceSecPerMi,
+  }));
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 text-black">
-      {/* Dashboard Header */}
-      <header className="p-4 bg-gray-900 text-white shadow-md">
-        <h1 className="text-xl font-bold">Endurance Ledger</h1>
-        <p className="text-sm text-gray-400">System Active</p>
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100">
+      <header className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-4">
+        <h1 className="font-bold">Hybrid Coach</h1>
+        <p className="text-xs text-neutral-500">Your plan, adapted in real time — not a rigid PDF</p>
       </header>
 
-      {/* Chat History */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col">
-        {messages.length === 0 && (
-          <div className="text-gray-500 text-center mt-10">
-            Awaiting input. Log your workout or report physical status.
+      <main className="p-6 max-w-6xl mx-auto">
+        {!planView ? (
+          <PlanSetupForm />
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
+            <PlanDashboard plan={planView} activities={activityViews} stravaConnected={!!user.stravaRefreshToken} />
+            <div className="h-[calc(100vh-140px)] lg:sticky lg:top-6">
+              <CoachChat initialMessages={chatHistory} />
+            </div>
           </div>
         )}
-        {messages.map((m: Message) => (
-          <div key={m.id} className={`p-3 rounded-lg max-w-[80%] ${m.role === 'user' ? 'bg-blue-600 text-white self-end ml-auto' : 'bg-gray-200 text-black mr-auto'}`}>
-            <span className="block font-bold text-xs opacity-75 mb-1">
-              {m.role === 'user' ? 'Athlete' : 'System'}
-            </span>
-            {m.content}
-          </div>
-        ))}
       </main>
-
-      {/* Input Form */}
-      <div className="p-4 bg-white border-t border-gray-200">
-        <form onSubmit={handleSubmit} className="flex gap-2 max-w-4xl mx-auto">
-          <input
-            className="flex-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
-            value={input}
-            placeholder="Log a run, note fatigue, or request schedule adjustment..."
-            onChange={handleInputChange}
-          />
-          <button type="submit" className="px-6 py-3 bg-gray-900 text-white rounded-md font-bold">
-            Send
-          </button>
-        </form>
-      </div>
     </div>
   );
 }

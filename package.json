@@ -10,7 +10,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@ai-sdk/google": "^4.0.10",
+    "@ai-sdk/anthropic": "^4.0.16",
     "@ai-sdk/react": "^4.0.19",
     "@prisma/client": "^6.19.3",
     "ai": "^7.0.18",

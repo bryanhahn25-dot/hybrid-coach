@@ -7,8 +7,8 @@ runs from Strava, and adjusts the plan when life happens -- through chat, not a 
 
 - Next.js 16 (App Router) + React 19
 - Prisma + Postgres (built against [Neon](https://neon.com))
-- `ai` (Vercel AI SDK) + `@ai-sdk/google` (Gemini) for the coach chat, with tool-calling that can
-  actually edit the plan
+- `ai` (Vercel AI SDK) + `@ai-sdk/anthropic` (Claude Opus 4.8) for the coach chat, with
+  tool-calling that can actually edit the plan
 - Strava API v3 (OAuth) for importing activities
 
 ## Setup
@@ -33,7 +33,7 @@ to match `STRAVA_REDIRECT_URI` (host only, e.g. `localhost` or your deployed dom
   back-to-back long run days instead of one ever-growing single run. Not ML, not a black box.
 - **Strava import** (`lib/strava.ts`, `app/api/strava/*`): OAuth token exchange/refresh and an
   activity sync that upserts runs and auto-links them to the matching day's planned workout.
-- **Coach chat** (`app/api/chat/route.ts`): Gemini with two tools -- `getWorkouts` to look up the
+- **Coach chat** (`app/api/chat/route.ts`): Claude Opus 4.8 with two tools -- `getWorkouts` to look up the
   plan, `adjustWorkouts` to actually change it. Tell it "I woke up sick" and it edits today's (and
   the week's) workouts and explains why, instead of just talking about it.
 

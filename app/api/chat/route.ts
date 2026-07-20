@@ -1,4 +1,4 @@
-import { google } from "@ai-sdk/google";
+import { anthropic } from "@ai-sdk/anthropic";
 import { streamText, convertToModelMessages, tool, stepCountIs, type UIMessage } from "ai";
 import { z } from "zod";
 import { NextResponse } from "next/server";
@@ -40,10 +40,13 @@ export async function POST(req: Request) {
   ]);
 
   const result = streamText({
-    model: google("gemini-flash-latest"),
+    model: anthropic("claude-opus-4-8"),
     system: `${SYSTEM_PROMPT}\n\nCurrent context:\n${context}`,
     messages: modelMessages,
     stopWhen: stepCountIs(5),
+    providerOptions: {
+      anthropic: { thinking: { type: "adaptive" } },
+    },
     tools: {
       getWorkouts: tool({
         description: "Get planned workouts for the athlete's active plan within a date range.",

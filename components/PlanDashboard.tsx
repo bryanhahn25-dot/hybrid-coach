@@ -36,6 +36,22 @@ export interface ActivityView {
   avgPaceSecPerMi: number | null;
 }
 
+export interface SupportWorkoutView {
+  id: number;
+  date: string;
+  category: "STRENGTH" | "MOBILITY";
+  name: string;
+  description: string | null;
+  status: string;
+}
+
+export interface QueuedPlanView {
+  goalName: string;
+  goalDistanceMi: number;
+  raceDate: string;
+  startDate: string;
+}
+
 const STATUS_STYLES: Record<string, string> = {
   SCHEDULED: "border-neutral-300 dark:border-neutral-700",
   COMPLETED: "border-green-500 bg-green-50 dark:bg-green-950",
@@ -58,15 +74,20 @@ function startOfWeek(d: Date) {
 export default function PlanDashboard({
   plan,
   activities,
+  supportWorkouts,
+  queuedPlan,
   stravaConnected,
 }: {
   plan: PlanView;
   activities: ActivityView[];
+  supportWorkouts: SupportWorkoutView[];
+  queuedPlan: QueuedPlanView | null;
   stravaConnected: boolean;
 }) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [updatingSupportId, setUpdatingSupportId] = useState<number | null>(null);
 
   const today = new Date();
   const thisWeekStart = startOfWeek(today);
@@ -76,9 +97,11 @@ export default function PlanDashboard({
   const daysToRace = Math.ceil((raceDate.getTime() - today.getTime()) / 86400000);
 
   // Bound navigation to roughly a year of history (matches how far back activities are fetched)
-  // through a week past the race, so the arrows can't scroll into a guaranteed-empty void.
+  // through a week past the furthest-out race (including a queued plan), so the arrows can't
+  // scroll into a guaranteed-empty void.
+  const furthestRaceDate = queuedPlan && new Date(queuedPlan.raceDate) > raceDate ? new Date(queuedPlan.raceDate) : raceDate;
   const earliestWeek = startOfWeek(new Date(today.getTime() - 365 * 86400000));
-  const latestWeek = startOfWeek(new Date(raceDate.getTime() + 7 * 86400000));
+  const latestWeek = startOfWeek(new Date(furthestRaceDate.getTime() + 7 * 86400000));
   const canGoEarlier = weekStart.getTime() > earliestWeek.getTime();
   const canGoLater = weekStart.getTime() < latestWeek.getTime();
 
@@ -91,6 +114,7 @@ export default function PlanDashboard({
   // Actual runs for this week looked up independently of any planned workout, so days before the
   // plan existed (or extra unplanned runs) still show what was actually run.
   const weekActivities = weekDays.map((day) => activities.find((a) => isSameDay(new Date(a.date), day)));
+  const weekSupport = weekDays.map((day) => supportWorkouts.filter((s) => isSameDay(new Date(s.date), day)));
   const isViewingCurrentWeek = isSameDay(weekStart, thisWeekStart);
   const todayWorkout = isViewingCurrentWeek ? plan.workouts.find((w) => isSameDay(new Date(w.date), today)) : undefined;
 
@@ -105,6 +129,20 @@ export default function PlanDashboard({
       router.refresh();
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+  async function updateSupportWorkout(id: number, status: string) {
+    setUpdatingSupportId(id);
+    try {
+      await fetch(`/api/support-workouts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      router.refresh();
+    } finally {
+      setUpdatingSupportId(null);
     }
   }
 
@@ -128,6 +166,15 @@ export default function PlanDashboard({
           </p>
         </div>
       </div>
+
+      {queuedPlan && (
+        <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-3 text-sm text-neutral-600 dark:text-neutral-400">
+          Next up: <span className="font-medium text-neutral-900 dark:text-neutral-100">{queuedPlan.goalName}</span> (
+          {queuedPlan.goalDistanceMi}mi) — training starts {new Date(queuedPlan.startDate).toDateString()}, racing{" "}
+          {new Date(queuedPlan.raceDate).toDateString()}. It'll automatically become your active plan once{" "}
+          {plan.goalName} is done.
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <button
@@ -167,6 +214,7 @@ export default function PlanDashboard({
         {weekDays.map((day, i) => {
           const w = weekWorkouts[i];
           const a = weekActivities[i];
+          const support = weekSupport[i];
           const isToday = isSameDay(day, today);
           const cellStyle = w
             ? STATUS_STYLES[w.status]
@@ -188,10 +236,49 @@ export default function PlanDashboard({
               {a && (
                 <div className="text-[11px] text-green-700 dark:text-green-400 mt-0.5">{a.distanceMi.toFixed(1)}mi actual</div>
               )}
+              {support.length > 0 && (
+                <div className="text-[11px] mt-0.5" title={support.map((s) => s.name).join(", ")}>
+                  {support.some((s) => s.category === "STRENGTH") ? "💪" : ""}
+                  {support.some((s) => s.category === "MOBILITY") ? "🧘" : ""}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
+
+      {weekSupport.some((day) => day.length > 0) && (
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4">
+          <h3 className="font-semibold text-sm mb-3">Strength &amp; mobility this week</h3>
+          <ul className="space-y-2">
+            {weekDays.flatMap((day, i) =>
+              weekSupport[i].map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-2 text-sm">
+                  <div className="min-w-0">
+                    <span className="text-neutral-500 text-xs">
+                      {day.toLocaleDateString(undefined, { weekday: "short" })}{" "}
+                    </span>
+                    <span
+                      className={`text-neutral-700 dark:text-neutral-300 ${s.status === "COMPLETED" ? "line-through opacity-60" : ""}`}
+                    >
+                      {s.category === "STRENGTH" ? "💪" : "🧘"} {s.name}
+                    </span>
+                  </div>
+                  {s.status === "SCHEDULED" && (
+                    <button
+                      disabled={updatingSupportId === s.id}
+                      onClick={() => updateSupportWorkout(s.id, "COMPLETED")}
+                      className="shrink-0 px-2 py-1 text-xs font-medium border border-neutral-300 dark:border-neutral-700 rounded-md disabled:opacity-50"
+                    >
+                      Done
+                    </button>
+                  )}
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
 
       {todayWorkout && (
         <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4">

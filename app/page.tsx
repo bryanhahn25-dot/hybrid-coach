@@ -1,22 +1,71 @@
 import { getCurrentUser } from "@/lib/currentUser";
-import { getActivePlanWithWorkouts, getActivitiesSince } from "@/lib/planQueries";
+import {
+  getActivePlanWithWorkouts,
+  getActivitiesSince,
+  getQueuedPlanWithWorkouts,
+  getSupportWorkoutsSince,
+} from "@/lib/planQueries";
 import { getChatHistory } from "@/lib/chatHistory";
 import PlanSetupForm from "@/components/PlanSetupForm";
-import PlanDashboard, { type ActivityView, type PlanView } from "@/components/PlanDashboard";
+import PlanDashboard, {
+  type ActivityView,
+  type PlanView,
+  type QueuedPlanView,
+  type SupportWorkoutView,
+  type WorkoutView,
+} from "@/components/PlanDashboard";
 import CoachChat from "@/components/CoachChat";
 
 // Always reflects live DB state (plan, chat history) — never statically prerendered.
 export const dynamic = "force-dynamic";
 
+type WorkoutWithActivity = {
+  id: number;
+  date: Date;
+  weekNumber: number;
+  phase: string;
+  workoutType: string;
+  targetDistanceMi: number | null;
+  description: string;
+  status: string;
+  adjustmentNote: string | null;
+  activity: { distanceMi: number; movingTimeSec: number; avgPaceSecPerMi: number | null } | null;
+};
+
+function mapWorkout(w: WorkoutWithActivity): WorkoutView {
+  return {
+    id: w.id,
+    date: w.date.toISOString(),
+    weekNumber: w.weekNumber,
+    phase: w.phase,
+    workoutType: w.workoutType,
+    targetDistanceMi: w.targetDistanceMi,
+    description: w.description,
+    status: w.status,
+    adjustmentNote: w.adjustmentNote,
+    activity: w.activity
+      ? {
+          distanceMi: w.activity.distanceMi,
+          movingTimeSec: w.activity.movingTimeSec,
+          avgPaceSecPerMi: w.activity.avgPaceSecPerMi,
+        }
+      : null,
+  };
+}
+
 export default async function HomePage() {
   const user = await getCurrentUser();
   const oneYearAgo = new Date(Date.now() - 365 * 86400000);
-  const [plan, activities, chatHistory] = await Promise.all([
+  const [plan, activities, supportWorkouts, queuedPlan, chatHistory] = await Promise.all([
     getActivePlanWithWorkouts(user.id),
     getActivitiesSince(user.id, oneYearAgo),
+    getSupportWorkoutsSince(user.id, oneYearAgo),
+    getQueuedPlanWithWorkouts(user.id),
     getChatHistory(user.id),
   ]);
 
+  // The queued plan's workouts are merged in too, so week-navigation can browse forward into
+  // it (e.g. the marathon block) before it's actually promoted to active.
   const planView: PlanView | null = plan
     ? {
         id: plan.id,
@@ -25,24 +74,7 @@ export default async function HomePage() {
         raceDate: plan.raceDate.toISOString(),
         startDate: plan.startDate.toISOString(),
         longRunDay: plan.longRunDay,
-        workouts: plan.workouts.map((w) => ({
-          id: w.id,
-          date: w.date.toISOString(),
-          weekNumber: w.weekNumber,
-          phase: w.phase,
-          workoutType: w.workoutType,
-          targetDistanceMi: w.targetDistanceMi,
-          description: w.description,
-          status: w.status,
-          adjustmentNote: w.adjustmentNote,
-          activity: w.activity
-            ? {
-                distanceMi: w.activity.distanceMi,
-                movingTimeSec: w.activity.movingTimeSec,
-                avgPaceSecPerMi: w.activity.avgPaceSecPerMi,
-              }
-            : null,
-        })),
+        workouts: [...plan.workouts.map(mapWorkout), ...(queuedPlan?.workouts.map(mapWorkout) ?? [])],
       }
     : null;
 
@@ -54,6 +86,24 @@ export default async function HomePage() {
     movingTimeSec: a.movingTimeSec,
     avgPaceSecPerMi: a.avgPaceSecPerMi,
   }));
+
+  const supportWorkoutViews: SupportWorkoutView[] = supportWorkouts.map((s) => ({
+    id: s.id,
+    date: s.date.toISOString(),
+    category: s.category,
+    name: s.name,
+    description: s.description,
+    status: s.status,
+  }));
+
+  const queuedPlanView: QueuedPlanView | null = queuedPlan
+    ? {
+        goalName: queuedPlan.goalName,
+        goalDistanceMi: queuedPlan.goalDistanceMi,
+        raceDate: queuedPlan.raceDate.toISOString(),
+        startDate: queuedPlan.startDate.toISOString(),
+      }
+    : null;
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100">
@@ -67,7 +117,13 @@ export default async function HomePage() {
           <PlanSetupForm />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
-            <PlanDashboard plan={planView} activities={activityViews} stravaConnected={!!user.stravaRefreshToken} />
+            <PlanDashboard
+              plan={planView}
+              activities={activityViews}
+              supportWorkouts={supportWorkoutViews}
+              queuedPlan={queuedPlanView}
+              stravaConnected={!!user.stravaRefreshToken}
+            />
             <div className="h-[calc(100vh-140px)] lg:sticky lg:top-6">
               <CoachChat initialMessages={chatHistory} />
             </div>

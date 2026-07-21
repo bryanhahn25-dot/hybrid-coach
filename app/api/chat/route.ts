@@ -1,4 +1,4 @@
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText, convertToModelMessages, tool, stepCountIs, type UIMessage } from "ai";
 import { z } from "zod";
 import { NextResponse } from "next/server";
@@ -19,6 +19,8 @@ const SYSTEM_PROMPT = `You are an adaptive running coach. Unlike a rigid pre-bak
 When the athlete reports something that should change today's or this week's training (sick, sore, exhausted, traveling, time-crunched, feeling great and wants more), use the adjustWorkouts tool to actually update the plan -- don't just suggest it in prose. Use getWorkouts if you need to see a date range beyond this week (e.g. "what does next month look like"). Always explain briefly why you made the change.
 
 Keep responses concise and direct, like a real coach texting back.`;
+
+const google = createGoogleGenerativeAI({ apiKey: process.env.Gemini_API_Key });
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();

@@ -15,7 +15,7 @@ runs from Strava, and adjusts the plan when life happens -- through chat, not a 
 
 ```bash
 npm install
-cp .env.example .env   # fill in DATABASE_URL, GOOGLE_GENERATIVE_AI_API_KEY, STRAVA_CLIENT_ID/SECRET
+cp .env.example .env   # fill in DATABASE_URL, Gemini_API_Key, STRAVA_CLIENT_ID/SECRET
 npx prisma migrate deploy   # or `prisma migrate dev` for local development
 npm run dev
 ```

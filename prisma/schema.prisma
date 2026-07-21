@@ -117,6 +117,7 @@ model SupportWorkout {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
+  @@unique([userId, date, name])
   @@index([userId, date])
 }
 

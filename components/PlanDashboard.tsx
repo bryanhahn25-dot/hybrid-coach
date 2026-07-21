@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { paceSecPerMiToString } from "@/lib/units";
 
@@ -133,7 +133,17 @@ export default function PlanDashboard({
   const weekActivities = weekDays.map((day) => activities.find((a) => isSameDay(new Date(a.date), day)));
   const weekSupport = weekDays.map((day) => supportWorkouts.filter((s) => isSameDay(new Date(s.date), day)));
   const isViewingCurrentWeek = isSameDay(weekStart, thisWeekStart);
-  const todayWorkout = isViewingCurrentWeek ? plan.workouts.find((w) => isSameDay(new Date(w.date), today)) : undefined;
+  const todayWorkout = plan.workouts.find((w) => isSameDay(new Date(w.date), today));
+
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState<number | null>(todayWorkout?.id ?? null);
+  // Clicking a day selects its workout for the detail panel below; jumping to a different week
+  // clears that selection (defaulting back to today's workout if the current week is in view).
+  useEffect(() => {
+    setSelectedWorkoutId(isViewingCurrentWeek ? (todayWorkout?.id ?? null) : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStart.getTime()]);
+  const selectedWorkout = plan.workouts.find((w) => w.id === selectedWorkoutId);
+  const isSelectedToday = !!selectedWorkout && isSameDay(new Date(selectedWorkout.date), today);
 
   async function updateWorkout(id: number, data: Record<string, unknown>) {
     setUpdatingId(id);
@@ -236,17 +246,24 @@ export default function PlanDashboard({
           const a = weekActivities[i];
           const support = weekSupport[i];
           const isToday = isSameDay(day, today);
+          const isSelected = w && w.id === selectedWorkoutId;
           const cellStyle = w
             ? STATUS_STYLES[w.status]
             : a
               ? "border-blue-300 bg-blue-50 dark:bg-blue-950 dark:border-blue-800"
               : "border-neutral-200 dark:border-neutral-800";
+          const ringStyle = isSelected
+            ? "ring-2 ring-blue-600"
+            : isToday
+              ? "ring-2 ring-neutral-900 dark:ring-white"
+              : "";
           return (
-            <div
+            <button
+              type="button"
               key={i}
-              className={`rounded-lg border p-2 text-center ${cellStyle} ${
-                isToday ? "ring-2 ring-neutral-900 dark:ring-white" : ""
-              }`}
+              disabled={!w}
+              onClick={() => w && setSelectedWorkoutId(w.id)}
+              className={`rounded-lg border p-2 text-center ${cellStyle} ${ringStyle} ${w ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
             >
               <div className="text-[10px] uppercase text-neutral-500">
                 {formatUTCDate(day, { weekday: "short" })} {day.getUTCDate()}
@@ -262,7 +279,7 @@ export default function PlanDashboard({
                   {support.some((s) => s.category === "MOBILITY") ? "🧘" : ""}
                 </div>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
@@ -298,38 +315,39 @@ export default function PlanDashboard({
         </div>
       )}
 
-      {todayWorkout && (
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4">
+      {selectedWorkout && (
+        <div className="rounded-lg border border-blue-200 dark:border-blue-900 p-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-semibold text-sm">
-              Today — {todayWorkout.workoutType}
-              {todayWorkout.targetDistanceMi ? ` · ${todayWorkout.targetDistanceMi}mi` : ""}
+              {isSelectedToday ? "Today" : formatUTCDate(new Date(selectedWorkout.date), { weekday: "short", month: "short", day: "numeric" })}{" "}
+              — {selectedWorkout.workoutType}
+              {selectedWorkout.targetDistanceMi ? ` · ${selectedWorkout.targetDistanceMi}mi` : ""}
             </h3>
-            <span className="text-xs text-neutral-500">{todayWorkout.phase}</span>
+            <span className="text-xs text-neutral-500">{selectedWorkout.phase}</span>
           </div>
-          <p className="text-sm text-neutral-700 dark:text-neutral-300">{todayWorkout.description}</p>
-          {todayWorkout.adjustmentNote && (
-            <p className="text-xs italic text-amber-600 dark:text-amber-400 mt-1">{todayWorkout.adjustmentNote}</p>
+          <p className="text-sm text-neutral-700 dark:text-neutral-300">{selectedWorkout.description}</p>
+          {selectedWorkout.adjustmentNote && (
+            <p className="text-xs italic text-amber-600 dark:text-amber-400 mt-1">{selectedWorkout.adjustmentNote}</p>
           )}
-          {todayWorkout.activity && (
+          {selectedWorkout.activity && (
             <p className="text-xs text-green-700 dark:text-green-400 mt-2">
-              Logged: {todayWorkout.activity.distanceMi.toFixed(1)}mi in{" "}
-              {Math.round(todayWorkout.activity.movingTimeSec / 60)}min (
-              {paceSecPerMiToString(todayWorkout.activity.avgPaceSecPerMi)})
+              Logged: {selectedWorkout.activity.distanceMi.toFixed(1)}mi in{" "}
+              {Math.round(selectedWorkout.activity.movingTimeSec / 60)}min (
+              {paceSecPerMiToString(selectedWorkout.activity.avgPaceSecPerMi)})
             </p>
           )}
-          {todayWorkout.workoutType !== "REST" && todayWorkout.status === "SCHEDULED" && (
+          {selectedWorkout.workoutType !== "REST" && selectedWorkout.status === "SCHEDULED" && (
             <div className="flex gap-2 mt-3">
               <button
-                disabled={updatingId === todayWorkout.id}
-                onClick={() => updateWorkout(todayWorkout.id, { status: "COMPLETED" })}
+                disabled={updatingId === selectedWorkout.id}
+                onClick={() => updateWorkout(selectedWorkout.id, { status: "COMPLETED" })}
                 className="px-3 py-1.5 text-xs font-medium bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-md disabled:opacity-50"
               >
                 Mark completed
               </button>
               <button
-                disabled={updatingId === todayWorkout.id}
-                onClick={() => updateWorkout(todayWorkout.id, { status: "MISSED" })}
+                disabled={updatingId === selectedWorkout.id}
+                onClick={() => updateWorkout(selectedWorkout.id, { status: "MISSED" })}
                 className="px-3 py-1.5 text-xs font-medium border border-neutral-300 dark:border-neutral-700 rounded-md disabled:opacity-50"
               >
                 Mark missed

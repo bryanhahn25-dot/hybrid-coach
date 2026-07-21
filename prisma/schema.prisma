@@ -9,8 +9,14 @@ datasource db {
 
 enum PlanStatus {
   ACTIVE
+  QUEUED
   COMPLETED
   ARCHIVED
+}
+
+enum SupportCategory {
+  STRENGTH
+  MOBILITY
 }
 
 enum PlanPhase {
@@ -53,9 +59,10 @@ model User {
   stravaLastSyncAt     DateTime?
   createdAt            DateTime  @default(now())
 
-  plans        TrainingPlan[]
-  activities   Activity[]
-  chatMessages ChatMessage[]
+  plans           TrainingPlan[]
+  activities      Activity[]
+  chatMessages    ChatMessage[]
+  supportWorkouts SupportWorkout[]
 }
 
 model TrainingPlan {
@@ -96,6 +103,21 @@ model PlannedWorkout {
 
   @@unique([planId, date])
   @@index([planId, date])
+}
+
+model SupportWorkout {
+  id          Int             @id @default(autoincrement())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id])
+  date        DateTime
+  category    SupportCategory
+  name        String
+  description String?
+  status      WorkoutStatus   @default(SCHEDULED)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([userId, date])
 }
 
 model Activity {

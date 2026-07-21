@@ -60,15 +60,32 @@ const STATUS_STYLES: Record<string, string> = {
   SKIPPED: "border-neutral-300 dark:border-neutral-700 opacity-60",
 };
 
+// Workout/activity/support dates are stored as UTC-midnight markers representing a calendar day
+// (matching the convention used server-side, e.g. lib/strava.ts's startOfLocalDay). Comparing or
+// displaying them with local-timezone Date methods shifts them a day for any browser west of UTC,
+// so everything here operates on UTC components instead.
 function isSameDay(a: Date, b: Date) {
-  return a.toDateString() === b.toDateString();
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate()
+  );
 }
 
 function startOfWeek(d: Date) {
-  const s = new Date(d);
-  s.setHours(0, 0, 0, 0);
-  s.setDate(s.getDate() - s.getDay());
+  const s = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  s.setUTCDate(s.getUTCDate() - s.getUTCDay());
   return s;
+}
+
+/** Today's calendar date (in the browser's local sense) represented the same UTC-midnight way. */
+function todayAsUTCMarker() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+}
+
+function formatUTCDate(d: Date, opts: Intl.DateTimeFormatOptions) {
+  return d.toLocaleDateString(undefined, { ...opts, timeZone: "UTC" });
 }
 
 export default function PlanDashboard({
@@ -89,7 +106,7 @@ export default function PlanDashboard({
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [updatingSupportId, setUpdatingSupportId] = useState<number | null>(null);
 
-  const today = new Date();
+  const today = todayAsUTCMarker();
   const thisWeekStart = startOfWeek(today);
   const [weekStart, setWeekStart] = useState(thisWeekStart);
 
@@ -162,7 +179,9 @@ export default function PlanDashboard({
         <div>
           <h1 className="text-xl font-bold">{plan.goalName}</h1>
           <p className="text-sm text-neutral-500">
-            {plan.goalDistanceMi}mi on {raceDate.toDateString()} · {daysToRace >= 0 ? `${daysToRace} days out` : "raced"}
+            {plan.goalDistanceMi}mi on{" "}
+            {formatUTCDate(raceDate, { weekday: "short", month: "short", day: "numeric", year: "numeric" })} ·{" "}
+            {daysToRace >= 0 ? `${daysToRace} days out` : "raced"}
           </p>
         </div>
       </div>
@@ -170,9 +189,10 @@ export default function PlanDashboard({
       {queuedPlan && (
         <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-3 text-sm text-neutral-600 dark:text-neutral-400">
           Next up: <span className="font-medium text-neutral-900 dark:text-neutral-100">{queuedPlan.goalName}</span> (
-          {queuedPlan.goalDistanceMi}mi) — training starts {new Date(queuedPlan.startDate).toDateString()}, racing{" "}
-          {new Date(queuedPlan.raceDate).toDateString()}. It'll automatically become your active plan once{" "}
-          {plan.goalName} is done.
+          {queuedPlan.goalDistanceMi}mi) — training starts{" "}
+          {formatUTCDate(new Date(queuedPlan.startDate), { month: "short", day: "numeric", year: "numeric" })}, racing{" "}
+          {formatUTCDate(new Date(queuedPlan.raceDate), { month: "short", day: "numeric", year: "numeric" })}. It'll
+          automatically become your active plan once {plan.goalName} is done.
         </div>
       )}
 
@@ -187,8 +207,8 @@ export default function PlanDashboard({
         </button>
         <div className="text-center">
           <div className="text-sm font-medium">
-            {weekDays[0].toLocaleDateString(undefined, { month: "short", day: "numeric" })} –{" "}
-            {weekDays[6].toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+            {formatUTCDate(weekDays[0], { month: "short", day: "numeric" })} –{" "}
+            {formatUTCDate(weekDays[6], { month: "short", day: "numeric", year: "numeric" })}
           </div>
           {!isViewingCurrentWeek && (
             <button
@@ -229,7 +249,7 @@ export default function PlanDashboard({
               }`}
             >
               <div className="text-[10px] uppercase text-neutral-500">
-                {day.toLocaleDateString(undefined, { weekday: "short" })} {day.getDate()}
+                {formatUTCDate(day, { weekday: "short" })} {day.getUTCDate()}
               </div>
               <div className="text-xs font-medium mt-0.5">{w ? w.workoutType : a ? "Run" : "—"}</div>
               <div className="text-[11px] text-neutral-500">{w?.targetDistanceMi ? `${w.targetDistanceMi}mi` : ""}</div>
@@ -255,9 +275,7 @@ export default function PlanDashboard({
               weekSupport[i].map((s) => (
                 <li key={s.id} className="flex items-center justify-between gap-2 text-sm">
                   <div className="min-w-0">
-                    <span className="text-neutral-500 text-xs">
-                      {day.toLocaleDateString(undefined, { weekday: "short" })}{" "}
-                    </span>
+                    <span className="text-neutral-500 text-xs">{formatUTCDate(day, { weekday: "short" })} </span>
                     <span
                       className={`text-neutral-700 dark:text-neutral-300 ${s.status === "COMPLETED" ? "line-through opacity-60" : ""}`}
                     >

@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/currentUser";
-import { getActivePlanWithWorkouts, getRecentActivities } from "@/lib/planQueries";
+import { getActivePlanWithWorkouts, getActivitiesSince } from "@/lib/planQueries";
 import { getChatHistory } from "@/lib/chatHistory";
 import PlanSetupForm from "@/components/PlanSetupForm";
 import PlanDashboard, { type ActivityView, type PlanView } from "@/components/PlanDashboard";
@@ -10,9 +10,10 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
+  const oneYearAgo = new Date(Date.now() - 365 * 86400000);
   const [plan, activities, chatHistory] = await Promise.all([
     getActivePlanWithWorkouts(user.id),
-    getRecentActivities(user.id, 8),
+    getActivitiesSince(user.id, oneYearAgo),
     getChatHistory(user.id),
   ]);
 

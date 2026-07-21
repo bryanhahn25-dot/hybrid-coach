@@ -35,3 +35,11 @@ export function getRecentActivities(userId: string, limit = 10) {
     take: limit,
   });
 }
+
+/** All activities since `since`, for week-by-week browsing (including pre-plan history). */
+export function getActivitiesSince(userId: string, since: Date) {
+  return prisma.activity.findMany({
+    where: { userId, date: { gte: since } },
+    orderBy: { date: "desc" },
+  });
+}

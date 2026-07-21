@@ -29,14 +29,7 @@ export async function POST(req: Request) {
   const user = await getCurrentUser();
 
   const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
-  if (lastUserMessage) {
-    const text = textFromUIMessage(lastUserMessage);
-    if (text.trim()) {
-      await prisma.chatMessage.create({
-        data: { userId: user.id, role: "user", content: text },
-      });
-    }
-  }
+  const userText = lastUserMessage ? textFromUIMessage(lastUserMessage) : "";
 
   const [context, modelMessages] = await Promise.all([
     buildCoachContext(user.id),
@@ -134,6 +127,13 @@ export async function POST(req: Request) {
       }),
     },
     onFinish: async ({ text }) => {
+      // Persisted together, only once the model has actually replied -- so a failed or
+      // timed-out call never leaves an unanswered user message stuck in history.
+      if (userText.trim()) {
+        await prisma.chatMessage.create({
+          data: { userId: user.id, role: "user", content: userText },
+        });
+      }
       if (text.trim()) {
         await prisma.chatMessage.create({
           data: { userId: user.id, role: "assistant", content: text },

@@ -69,13 +69,30 @@ export default function PlanDashboard({
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   const today = new Date();
-  const weekStart = startOfWeek(today);
-  const weekDays = Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * 86400000));
-  const weekWorkouts = weekDays.map((day) => plan.workouts.find((w) => isSameDay(new Date(w.date), day)));
-  const todayWorkout = plan.workouts.find((w) => isSameDay(new Date(w.date), today));
+  const thisWeekStart = startOfWeek(today);
+  const [weekStart, setWeekStart] = useState(thisWeekStart);
 
   const raceDate = new Date(plan.raceDate);
   const daysToRace = Math.ceil((raceDate.getTime() - today.getTime()) / 86400000);
+
+  // Bound navigation to roughly a year of history (matches how far back activities are fetched)
+  // through a week past the race, so the arrows can't scroll into a guaranteed-empty void.
+  const earliestWeek = startOfWeek(new Date(today.getTime() - 365 * 86400000));
+  const latestWeek = startOfWeek(new Date(raceDate.getTime() + 7 * 86400000));
+  const canGoEarlier = weekStart.getTime() > earliestWeek.getTime();
+  const canGoLater = weekStart.getTime() < latestWeek.getTime();
+
+  function shiftWeek(days: number) {
+    setWeekStart((prev) => new Date(prev.getTime() + days * 86400000));
+  }
+
+  const weekDays = Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * 86400000));
+  const weekWorkouts = weekDays.map((day) => plan.workouts.find((w) => isSameDay(new Date(w.date), day)));
+  // Actual runs for this week looked up independently of any planned workout, so days before the
+  // plan existed (or extra unplanned runs) still show what was actually run.
+  const weekActivities = weekDays.map((day) => activities.find((a) => isSameDay(new Date(a.date), day)));
+  const isViewingCurrentWeek = isSameDay(weekStart, thisWeekStart);
+  const todayWorkout = isViewingCurrentWeek ? plan.workouts.find((w) => isSameDay(new Date(w.date), today)) : undefined;
 
   async function updateWorkout(id: number, data: Record<string, unknown>) {
     setUpdatingId(id);
@@ -112,22 +129,65 @@ export default function PlanDashboard({
         </div>
       </div>
 
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => shiftWeek(-7)}
+          disabled={!canGoEarlier}
+          className="px-2.5 py-1 text-xs font-medium border border-neutral-300 dark:border-neutral-700 rounded-md disabled:opacity-30"
+        >
+          ← Prev week
+        </button>
+        <div className="text-center">
+          <div className="text-sm font-medium">
+            {weekDays[0].toLocaleDateString(undefined, { month: "short", day: "numeric" })} –{" "}
+            {weekDays[6].toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+          </div>
+          {!isViewingCurrentWeek && (
+            <button
+              type="button"
+              onClick={() => setWeekStart(thisWeekStart)}
+              className="text-xs text-neutral-500 underline underline-offset-2"
+            >
+              Back to this week
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => shiftWeek(7)}
+          disabled={!canGoLater}
+          className="px-2.5 py-1 text-xs font-medium border border-neutral-300 dark:border-neutral-700 rounded-md disabled:opacity-30"
+        >
+          Next week →
+        </button>
+      </div>
+
       <div className="grid grid-cols-7 gap-2">
         {weekDays.map((day, i) => {
           const w = weekWorkouts[i];
+          const a = weekActivities[i];
           const isToday = isSameDay(day, today);
+          const cellStyle = w
+            ? STATUS_STYLES[w.status]
+            : a
+              ? "border-blue-300 bg-blue-50 dark:bg-blue-950 dark:border-blue-800"
+              : "border-neutral-200 dark:border-neutral-800";
           return (
             <div
               key={i}
-              className={`rounded-lg border p-2 text-center ${w ? STATUS_STYLES[w.status] : "border-neutral-200 dark:border-neutral-800"} ${
+              className={`rounded-lg border p-2 text-center ${cellStyle} ${
                 isToday ? "ring-2 ring-neutral-900 dark:ring-white" : ""
               }`}
             >
               <div className="text-[10px] uppercase text-neutral-500">
-                {day.toLocaleDateString(undefined, { weekday: "short" })}
+                {day.toLocaleDateString(undefined, { weekday: "short" })} {day.getDate()}
               </div>
-              <div className="text-xs font-medium mt-0.5">{w ? w.workoutType : "—"}</div>
+              <div className="text-xs font-medium mt-0.5">{w ? w.workoutType : a ? "Run" : "—"}</div>
               <div className="text-[11px] text-neutral-500">{w?.targetDistanceMi ? `${w.targetDistanceMi}mi` : ""}</div>
+              {a && (
+                <div className="text-[11px] text-green-700 dark:text-green-400 mt-0.5">{a.distanceMi.toFixed(1)}mi actual</div>
+              )}
             </div>
           );
         })}
@@ -200,7 +260,7 @@ export default function PlanDashboard({
           </p>
         ) : (
           <ul className="space-y-1.5">
-            {activities.map((a) => (
+            {activities.slice(0, 8).map((a) => (
               <li key={a.id} className="text-sm flex justify-between">
                 <span className="text-neutral-700 dark:text-neutral-300">
                   {new Date(a.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })} — {a.name ?? "Run"}

@@ -7,6 +7,8 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { buildCoachContext } from "@/lib/chatContext";
 import { getChatHistory } from "@/lib/chatHistory";
 
+export const maxDuration = 30;
+
 function textFromUIMessage(message: UIMessage): string {
   return message.parts
     .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
@@ -42,10 +44,12 @@ export async function POST(req: Request) {
   ]);
 
   const result = streamText({
-    model: google("gemini-flash-latest"),
+    model: google("gemini-flash-lite-latest"),
     system: `${SYSTEM_PROMPT}\n\nCurrent context:\n${context}`,
     messages: modelMessages,
     stopWhen: stepCountIs(5),
+    maxOutputTokens: 1024,
+    temperature: 0.6,
     tools: {
       getWorkouts: tool({
         description: "Get planned workouts for the athlete's active plan within a date range.",

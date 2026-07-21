@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   ]);
 
   const result = streamText({
-    model: google("gemini-2.5-flash"),
+    model: google("gemini-flash-latest"),
     system: `${SYSTEM_PROMPT}\n\nCurrent context:\n${context}`,
     messages: modelMessages,
     stopWhen: stepCountIs(5),

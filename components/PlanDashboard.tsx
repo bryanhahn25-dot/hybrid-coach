@@ -263,7 +263,7 @@ export default function PlanDashboard({
               key={i}
               disabled={!w}
               onClick={() => w && setSelectedWorkoutId(w.id)}
-              className={`rounded-lg border p-2 text-center ${cellStyle} ${ringStyle} ${w ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
+              className={`rounded-lg border p-2 text-center ${cellStyle} ${ringStyle} ${w ? "cursor-pointer hover:opacity-80 active:opacity-70 transition-opacity" : "cursor-default"}`}
             >
               <div className="text-[10px] uppercase text-neutral-500">
                 {formatUTCDate(day, { weekday: "short" })} {day.getUTCDate()}
@@ -283,37 +283,6 @@ export default function PlanDashboard({
           );
         })}
       </div>
-
-      {weekSupport.some((day) => day.length > 0) && (
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4">
-          <h3 className="font-semibold text-sm mb-3">Strength &amp; mobility this week</h3>
-          <ul className="space-y-2">
-            {weekDays.flatMap((day, i) =>
-              weekSupport[i].map((s) => (
-                <li key={s.id} className="flex items-center justify-between gap-2 text-sm">
-                  <div className="min-w-0">
-                    <span className="text-neutral-500 text-xs">{formatUTCDate(day, { weekday: "short" })} </span>
-                    <span
-                      className={`text-neutral-700 dark:text-neutral-300 ${s.status === "COMPLETED" ? "line-through opacity-60" : ""}`}
-                    >
-                      {s.category === "STRENGTH" ? "💪" : "🧘"} {s.name}
-                    </span>
-                  </div>
-                  {s.status === "SCHEDULED" && (
-                    <button
-                      disabled={updatingSupportId === s.id}
-                      onClick={() => updateSupportWorkout(s.id, "COMPLETED")}
-                      className="shrink-0 px-2 py-1 text-xs font-medium border border-neutral-300 dark:border-neutral-700 rounded-md disabled:opacity-50"
-                    >
-                      Done
-                    </button>
-                  )}
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      )}
 
       {selectedWorkout && (
         <div className="rounded-lg border border-blue-200 dark:border-blue-900 p-4">
@@ -354,6 +323,38 @@ export default function PlanDashboard({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {weekSupport.some((day) => day.length > 0) && (
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4">
+          <h3 className="font-semibold text-sm mb-3">Strength &amp; mobility this week</h3>
+          <ul className="space-y-2">
+            {weekDays.flatMap((day, i) =>
+              weekSupport[i].map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-2 text-sm">
+                  <div className="min-w-0">
+                    <span className="text-neutral-500 text-xs">{formatUTCDate(day, { weekday: "short" })} </span>
+                    <span
+                      className={`text-neutral-700 dark:text-neutral-300 ${s.status === "COMPLETED" ? "line-through opacity-60" : ""}`}
+                    >
+                      {s.category === "STRENGTH" ? "💪 " : ""}
+                      {s.name}
+                    </span>
+                  </div>
+                  {s.status === "SCHEDULED" && (
+                    <button
+                      disabled={updatingSupportId === s.id}
+                      onClick={() => updateSupportWorkout(s.id, "COMPLETED")}
+                      className="shrink-0 px-2 py-1 text-xs font-medium border border-neutral-300 dark:border-neutral-700 rounded-md disabled:opacity-50"
+                    >
+                      Done
+                    </button>
+                  )}
+                </li>
+              ))
+            )}
+          </ul>
         </div>
       )}
 

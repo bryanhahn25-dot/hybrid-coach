@@ -44,3 +44,10 @@ next-env.d.ts
 
 # Neon CLI local context (per-machine)
 .neon
+
+# Local editor/assistant tooling
+.agents/
+skills-lock.json
+AGENTS.md
+CLAUDE.md
+.claude/
